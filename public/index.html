@@ -15,11 +15,11 @@
       color: #333;
       padding: 30px;
       border-radius: 10px;
-      max-width: 500px;
+      max-width: 600px;
       margin: auto;
       box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     }
-    input[type="file"] {
+    input[type="file"], input[type="password"] {
       margin-top: 20px;
       padding: 10px;
     }
@@ -33,58 +33,83 @@
       cursor: pointer;
       font-size: 16px;
     }
-    button:hover {
-      background-color: #5d62d0;
-    }
-    .result {
-      margin-top: 30px;
-      text-align: left;
-    }
-    iframe, img, audio, video {
-      max-width: 100%;
-      margin-top: 10px;
-    }
-    a {
-      color: #4e54c8;
-    }
+    .result, .list { margin-top: 30px; text-align: left; }
+    img, video, audio { max-width: 100%; margin-top: 10px; }
+    a { color: #4e54c8; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>Upload Your File</h2>
-    <input type="file" id="fileInput" />
+    <h2>Upload Your Files</h2>
+    <input type="password" id="password" placeholder="Enter password" />
+    <br>
+    <input type="file" id="fileInput" multiple />
     <br>
     <button onclick="upload()">Upload</button>
+    <button onclick="loadUploads()">View All Uploads</button>
 
     <div class="result" id="result"></div>
+    <div class="list" id="list"></div>
   </div>
 
   <script>
     async function upload() {
-      const file = document.getElementById('fileInput').files[0];
-      if (!file) return alert("Select a file first!");
+      const pw = document.getElementById('password').value;
+      const files = document.getElementById('fileInput').files;
+      if (!files.length) return alert("Select at least one file!");
+
       const formData = new FormData();
-      formData.append("file", file);
+      for (const file of files) formData.append("file", file);
 
       const res = await fetch("/upload", {
         method: "POST",
+        headers: { "Authorization": "Bearer " + pw },
         body: formData
       });
 
-      const data = await res.json();
       const result = document.getElementById("result");
-      result.innerHTML = `
-        <p><strong>View URL:</strong> <a href="${data.view_url}" target="_blank">${data.view_url}</a></p>
-        <p><strong>Download URL:</strong> <a href="${data.download_url}" target="_blank">${data.download_url}</a></p>
-      `;
+      const data = await res.json();
 
-      if (data.type === "image") {
-        result.innerHTML += `<img src="${data.view_url}" />`;
-      } else if (data.type === "video") {
-        result.innerHTML += `<video controls src="${data.view_url}"></video>`;
-      } else if (data.type === "audio") {
-        result.innerHTML += `<audio controls src="${data.view_url}"></audio>`;
+      if (res.status !== 200) {
+        result.innerHTML = "<p style='color:red'>" + data.error + "</p>";
+        return;
       }
+
+      result.innerHTML = "<h4>Uploaded:</h4>";
+      data.uploaded.forEach(item => {
+        result.innerHTML += `
+          <p><a href="${item.url}" target="_blank">${item.url}</a></p>
+          <p><a href="${item.download}" target="_blank">Download</a></p>
+          ${preview(item)}
+          <hr>
+        `;
+      });
+    }
+
+    async function loadUploads() {
+      const pw = document.getElementById('password').value;
+      const res = await fetch("/uploads", {
+        headers: { "Authorization": "Bearer " + pw }
+      });
+      const list = document.getElementById("list");
+      const data = await res.json();
+
+      list.innerHTML = "<h4>Uploaded Files:</h4>";
+      data.forEach(item => {
+        list.innerHTML += `
+          <p><a href="${item.url}" target="_blank">${item.url}</a></p>
+          <p><a href="${item.download}" target="_blank">Download</a></p>
+          ${preview(item)}
+          <hr>
+        `;
+      });
+    }
+
+    function preview(item) {
+      if (item.type === "image") return `<img src="${item.url}" />`;
+      if (item.type === "video") return `<video controls src="${item.url}"></video>`;
+      if (item.type === "audio") return `<audio controls src="${item.url}"></audio>`;
+      return "";
     }
   </script>
 </body>
